@@ -35,3 +35,7 @@ datasets/vg/
 # MacOS
 .DS_Store
 
+# Installation
+apex/
+checkpoints/
+cocoapi/
