@@ -1,11 +1,5 @@
-# MODEL.ROI_RELATION_HEAD.USE_GT_BOX True
-# MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL True
-# SOLVER.VAL_PERIOD 5000
-# SOLVER.CHECKPOINT_PERIOD 5000
-# GLOVE_DIR /home/share/datasets/vg/glove
-# OUTPUT_DIR /home/share/datasets/output/SHA_GCL_VG_PredCls_test
-
 #!/bin/bash
+
 timestamp() {
   date +"%Y-%m-%d%H%M%S"
 }
