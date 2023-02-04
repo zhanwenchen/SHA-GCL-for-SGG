@@ -8,8 +8,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128GB # need to match batch size.
 #SBATCH -J sha_gcl_baseline # TODO: CHANGE THIS
-#SBATCH -o /home/pct4et/gsc/log/%x-%A.out
-#SBATCH -e /home/pct4et/gsc/log/%x-%A.err
+#SBATCH -o /home/pct4et/gcl/log/%x-%A.out
+#SBATCH -e /home/pct4et/gcl/log/%x-%A.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=pct4et@virginia.edu
 #SBATCH --exclude=udc-an28-1,udc-an28-7
@@ -74,5 +74,5 @@ else
   export PORT=$(comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 1)
   export WEIGHT="''"
 
-  singularity exec --nv --env LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:${HOME}/.conda/envs/gsc_docker/lib" docker://pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel ${PROJECT_DIR}/scripts/train_motif.sh
+  singularity exec --nv --env LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:${HOME}/.conda/envs/gcl/lib" docker://pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel ${PROJECT_DIR}/scripts/train_motif.sh
 fi

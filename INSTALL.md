@@ -83,4 +83,3 @@ unset INSTALL_DIR
 
 # create a symlink vg that points to visual_genome folder
 # Copy glove.6B files to GLOVE_DIR ./datasets/vg/
-# mkdir checkpoints and copy /home/zhanwen/gsc/checkpoints/pretrained_faster_rcnn there
