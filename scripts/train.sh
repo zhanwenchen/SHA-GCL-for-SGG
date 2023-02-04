@@ -62,6 +62,6 @@ python -m torch.distributed.launch --master_port ${PORT} --nproc_per_node=$NUM_G
   SOLVER.VAL_PERIOD 2000 \
   SOLVER.CHECKPOINT_PERIOD 2000 \
   GLOVE_DIR ${PROJECT_DIR}/datasets/vg/ \
-  MODEL.PRETRAINED_DETECTOR_CKPT_VG ./checkpoints/pretrained_faster_rcnn/model_final.pth \
+  MODEL.PRETRAINED_DETECTOR_CKPT_VG ${PROJECT_DIR}/checkpoints/pretrained_faster_rcnn/model_final.pth \
   OUTPUT_DIR ${PROJECT_DIR}/checkpoints/${MODEL_NAME} 2>&1 | tee ${MODEL_DIRNAME}/log_train.log &&
 echo "Finished training ${MODE} model ${MODEL_NAME}" || echo "Failed to train ${MODE} model ${MODEL_NAME}"
