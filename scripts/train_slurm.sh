@@ -2,11 +2,11 @@
 
 #SBATCH -A sds-rise
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:4
-#SBATCH --ntasks-per-node=4 # need to match number of gpus
+#SBATCH --gres=gpu:a100:1
+#SBATCH --ntasks-per-node=1 # need to match number of gpus
 #SBATCH -t 48:00:00
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=128GB # need to match batch size.
+#SBATCH --mem=32GB # need to match batch size.
 #SBATCH -J sha_gcl_baseline # TODO: CHANGE THIS
 #SBATCH -o /home/pct4et/gcl/log/%x-%A.out
 #SBATCH -e /home/pct4et/gcl/log/%x-%A.err
