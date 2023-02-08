@@ -242,6 +242,10 @@ def train(cfg, local_rank, distributed, logger):
             logger.info("now best epoch in mR@k is : %d, num is %.4f" % (best_epoch, best_mR))
             logger.info("Validation Result: %.4f" % val_result)
 
+            # Test
+            logger.info(f"Start testing at iteration={iteration}")
+            run_test(cfg, model, distributed, logger)
+
         # scheduler should be called after optimizer.step() in pytorch>=1.1.0
         # https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
         if cfg.SOLVER.SCHEDULE.TYPE == "WarmupReduceLROnPlateau":
