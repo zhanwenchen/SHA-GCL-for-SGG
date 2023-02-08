@@ -97,7 +97,7 @@ class VGDataset(torch.utils.data.Dataset):
         return img, target, index
 
 
-    def get_statistics(self):
+    def get_statistics(self, return_lookup=False, train_data=None):
         fg_matrix, bg_matrix, obj2examples, rel2examples, stats = get_VG_statistics(img_dir=self.img_dir,
                           roidb_file=self.roidb_file,
                           dict_file=self.dict_file,
