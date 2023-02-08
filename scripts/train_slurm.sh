@@ -81,6 +81,7 @@ else
   export STRATEGY='cooccurrence-pred_cov'
   export BOTTOM_K=30
   export USE_SEMANTIC=True
+  export USE_GRAFT=True
 
   singularity exec --nv --env LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:${HOME}/.conda/envs/gcl/lib" docker://pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel ${PROJECT_DIR}/scripts/train.sh
 fi

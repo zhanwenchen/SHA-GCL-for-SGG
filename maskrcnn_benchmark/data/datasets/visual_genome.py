@@ -79,13 +79,13 @@ class VGDataset(torch.utils.data.Dataset):
             if self.transforms is not None:
                 img, target = self.transforms(img, target)
             return img, target, index
-        
+
         img = Image.open(self.filenames[index]).convert("RGB")
         if img.size[0] != self.img_info[index]['width'] or img.size[1] != self.img_info[index]['height']:
             print('='*20, ' ERROR index ', str(index), ' ', str(img.size), ' ', str(self.img_info[index]['width']), ' ', str(self.img_info[index]['height']), ' ', '='*20)
 
         flip_img = (random.random() > 0.5) and self.flip_aug and (self.split == 'train')
-        
+
         target = self.get_groundtruth(index, flip_img)
 
         if flip_img:
@@ -98,8 +98,13 @@ class VGDataset(torch.utils.data.Dataset):
 
 
     def get_statistics(self):
-        fg_matrix, bg_matrix = get_VG_statistics(img_dir=self.img_dir, roidb_file=self.roidb_file, dict_file=self.dict_file,
-                                                image_file=self.image_file, must_overlap=True)
+        fg_matrix, bg_matrix, obj2examples, rel2examples, stats = get_VG_statistics(img_dir=self.img_dir,
+                          roidb_file=self.roidb_file,
+                          dict_file=self.dict_file,
+                          image_file=self.image_file,
+                          must_overlap=True,
+                          return_lookup=return_lookup,
+                          train_data=train_data)
         eps = 1e-3
         bg_matrix += 1
         fg_matrix[:, :, 0] = bg_matrix
@@ -110,6 +115,9 @@ class VGDataset(torch.utils.data.Dataset):
             'pred_dist': torch.from_numpy(pred_dist).float(),
             'obj_classes': self.ind_to_classes,
             'rel_classes': self.ind_to_predicates,
+            'obj2examples': obj2examples,
+            'rel2examples': rel2examples,
+            'stats': stats,
         }
         return result
 
@@ -154,7 +162,7 @@ class VGDataset(torch.utils.data.Dataset):
                 all_rel_sets[(o0, o1)].append(r)
             relation = [(k[0], k[1], np.random.choice(v)) for k,v in all_rel_sets.items()]
             relation = np.array(relation, dtype=np.int32)
-        
+
         # add relation to target
         num_box = len(target)
         relation_map = torch.zeros((num_box, num_box), dtype=torch.int64)
@@ -180,35 +188,68 @@ class VGDataset(torch.utils.data.Dataset):
         return len(self.filenames)
 
 
-def get_VG_statistics(img_dir, roidb_file, dict_file, image_file, must_overlap=True):
-    train_data = VGDataset(split='train', img_dir=img_dir, roidb_file=roidb_file, 
-                        dict_file=dict_file, image_file=image_file, num_val_im=5000, 
-                        filter_duplicate_rels=False)
+def get_VG_statistics(img_dir, roidb_file, dict_file, image_file, must_overlap=True, return_lookup=False, train_data=None):
+    print("get visual genome statistics!!!!!!!!!!!!!!!!!!")
+    if train_data is None:
+        train_data = VGDataset(split='train', img_dir=img_dir, roidb_file=roidb_file,
+                               dict_file=dict_file, image_file=image_file, num_val_im=5000,
+                               filter_duplicate_rels=False)
     num_obj_classes = len(train_data.ind_to_classes)
     num_rel_classes = len(train_data.ind_to_predicates)
     fg_matrix = np.zeros((num_obj_classes, num_obj_classes, num_rel_classes), dtype=np.int64)
     bg_matrix = np.zeros((num_obj_classes, num_obj_classes), dtype=np.int64)
 
+    obj2examples = defaultdict(set) if return_lookup else None
+    rel2examples = defaultdict(set) if return_lookup else None
+    stats = []
+    get_groundtruth = train_data.get_groundtruth
+
     for ex_ind in tqdm(range(len(train_data))):
-        gt_classes = train_data.gt_classes[ex_ind].copy()
-        gt_relations = train_data.relationships[ex_ind].copy()
-        gt_boxes = train_data.gt_boxes[ex_ind].copy()
+        # img, target, _ = train_data[ex_ind]
+        # NOTE: the gt_boxes are right. The images haven't been transformed yet.
+        # gt_boxes = target.bbox[ex_ind].numpy()
+        target = get_groundtruth(ex_ind, evaluation=True, flip_img=False)
+        bbox = target.bbox
+        keep = (bbox[:, 3] > bbox[:, 1]) & (bbox[:, 2] > bbox[:, 0])
+        gt_boxes = bbox.floor().int().numpy()
+        gt_classes = train_data.gt_classes[ex_ind]
+        gt_relations = train_data.relationships[ex_ind]
+        # gt_boxes = train_data.gt_boxes[ex_ind]
+        # Don't need to worry about
+
+        # TODO: add the relative position of the relation to retrieve it.
+        # or just do a triplet
+
+        # if return_lookup:
+        #     for gt_class in gt_classes:
+        #         obj2examples[gt_class].add(ex_ind)
+
+        #     for gt_relation in gt_relations:
+        #         rel2examples[gt_class].add(ex_ind)
+            # For boxes, just use train_data.gt_boxes[ex_ind]
 
         # For the foreground, we'll just look at everything
-        o1o2 = gt_classes[gt_relations[:, :2]]
-        for (o1, o2), gtr in zip(o1o2, gt_relations[:,2]):
-            fg_matrix[o1, o2, gtr] += 1
+        o1o2_indices = gt_relations[:, :2]
+        o1o2 = gt_classes[o1o2_indices]
+        # QUESTION: are indicies and o1o2 even? Yes.
+        for idx, ((o1_idx, o2_idx), (o1, o2), gtr) in enumerate(zip(o1o2_indices, o1o2, gt_relations[:, 2])):
+            fg_matrix[o1, o2, gtr] += 1 # Keep shouldn't affect simple stats
+            if keep[o1_idx] and keep[o2_idx]:
+                gt_box_o1 = gt_boxes[o1_idx]
+                gt_box_o2 = gt_boxes[o2_idx]
+                row = [ex_ind, o1_idx, o1] + list(gt_box_o1) + [o2_idx, o2] + list(gt_box_o2) + [idx, gtr]
+                stats.append(row)
         # For the background, get all of the things that overlap.
         o1o2_total = gt_classes[np.array(
             box_filter(gt_boxes, must_overlap=must_overlap), dtype=int)]
         for (o1, o2) in o1o2_total:
             bg_matrix[o1, o2] += 1
 
-    return fg_matrix, bg_matrix
-    
+    return fg_matrix, bg_matrix, obj2examples, rel2examples, stats
+
 
 def box_filter(boxes, must_overlap=False):
-    """ Only include boxes that overlap as possible relations. 
+    """ Only include boxes that overlap as possible relations.
     If no overlapping boxes, use all of them."""
     n_cands = boxes.shape[0]
 
@@ -258,7 +299,7 @@ def correct_img_info(img_dir, image_file):
             print(img)
             data[i]['width'] = img_data.size[0]
             data[i]['height'] = img_data.size[1]
-    with open(image_file, 'w') as outfile:  
+    with open(image_file, 'w') as outfile:
         json.dump(data, outfile)
 
 def load_info(dict_file, add_bg=True):
@@ -285,7 +326,7 @@ def load_image_filenames(img_dir, image_file):
     Parameters:
         image_file: JSON file. Elements contain the param "image_id".
         img_dir: directory where the VisualGenome images are located
-    Return: 
+    Return:
         List of filenames corresponding to the good images
     """
     with open(image_file, 'r') as f:
@@ -318,12 +359,12 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
         num_val_im: Number of validation images
         filter_empty_rels: (will be filtered otherwise.)
         filter_non_overlap: If training, filter images that dont overlap.
-    Return: 
+    Return:
         image_index: numpy array corresponding to the index of images we're using
-        boxes: List where each element is a [num_gt, 4] array of ground 
+        boxes: List where each element is a [num_gt, 4] array of ground
                     truth boxes (x1, y1, x2, y2)
         gt_classes: List where each element is a [num_gt] array of classes
-        relationships: List where each element is a [num_r, 3] array of 
+        relationships: List where each element is a [num_r, 3] array of
                     (box_ind_1, box_ind_2, predicate) relationships
     """
     roi_h5 = h5py.File(roidb_file, 'r')

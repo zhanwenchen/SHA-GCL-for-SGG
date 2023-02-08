@@ -16,9 +16,10 @@ from . import samplers
 
 from .collate_batch import BatchCollator, BBoxAugCollator
 from .transforms import build_transforms
+from maskrcnn_benchmark.data.datasets.graft_augmenter import GraftAugmenterDataset
 
 # by Jiaxin
-def get_dataset_statistics(cfg):
+def get_dataset_statistics(cfg, return_lookup=False, return_datasets=False, train_data=None):
     """
     get dataset statistics (e.g., frequency bias) from training data
     will be called to help construct FrequencyBias module
@@ -40,19 +41,23 @@ def get_dataset_statistics(cfg):
 
     data_statistics_name = ''.join(dataset_names) + '_statistics'
     save_file = os.path.join(cfg.OUTPUT_DIR, "{}.cache".format(data_statistics_name))
-    
+
     if os.path.exists(save_file):
         logger.info('Loading data statistics from: ' + str(save_file))
         logger.info('-'*100)
         return torch.load(save_file, map_location=torch.device("cpu"))
 
     statistics = []
+    if return_datasets:
+        datasets = []
     for dataset_name in dataset_names:
         data = DatasetCatalog.get(dataset_name, cfg)
         factory = getattr(D, data["factory"])
         args = data["args"]
         dataset = factory(**args)
-        statistics.append(dataset.get_statistics())
+        statistics.append(dataset.get_statistics(return_lookup=return_lookup, train_data=train_data))
+        if return_datasets:
+            datasets.append(dataset)
     logger.info('finish')
 
     assert len(statistics) == 1
@@ -61,10 +66,16 @@ def get_dataset_statistics(cfg):
         'pred_dist': statistics[0]['pred_dist'],
         'obj_classes': statistics[0]['obj_classes'], # must be exactly same for multiple datasets
         'rel_classes': statistics[0]['rel_classes'],
+        'stats': statistics[0]['stats'],
     }
+    if return_lookup:
+        result['obj2examples'] = statistics[0]['obj2examples']
+        result['rel2examples'] = statistics[0]['rel2examples']
     logger.info('Save data statistics to: ' + str(save_file))
     logger.info('-'*100)
     torch.save(result, save_file)
+    if return_datasets:
+        return result, datasets
     return result
 
 
@@ -97,6 +108,10 @@ def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True)
         # make dataset from factory
         dataset = factory(**args)
         datasets.append(dataset)
+
+    # RelAug: Visual
+    if cfg.SOLVER.AUGMENTATION.USE_GRAFT is True and aug is True:
+        datasets.append(GraftAugmenterDataset(cfg))
 
     # for testing, return a list of datasets
     if not is_train:
@@ -259,7 +274,7 @@ def make_data_loader(cfg, mode='train', is_distributed=False, start_iter=0):
             if not os.path.exists(cfg.DETECTED_SGG_DIR):
                 os.makedirs(cfg.DETECTED_SGG_DIR)
 
-            with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_data_info.json'), 'w') as outfile:  
+            with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_data_info.json'), 'w') as outfile:
                 json.dump(custom_data_info, outfile)
             print('=====> ' + str(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_data_info.json')) + ' SAVED !')
         data_loaders.append(data_loader)

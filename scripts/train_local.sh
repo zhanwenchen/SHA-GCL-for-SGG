@@ -68,6 +68,7 @@ else
   export STRATEGY='cooccurrence-pred_cov'
   export BOTTOM_K=30
   export USE_SEMANTIC=True
+  export USE_GRAFT=True
 
   ${PROJECT_DIR}/scripts/train.sh
 fi
