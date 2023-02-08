@@ -7,7 +7,7 @@
 #SBATCH -t 48:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32GB # need to match batch size.
-#SBATCH -J sha_gcl_baseline # TODO: CHANGE THIS
+#SBATCH -J sha_gcl_semantic # TODO: CHANGE THIS
 #SBATCH -o /home/pct4et/gcl/log/%x-%A.out
 #SBATCH -e /home/pct4et/gcl/log/%x-%A.err
 #SBATCH --mail-type=ALL
