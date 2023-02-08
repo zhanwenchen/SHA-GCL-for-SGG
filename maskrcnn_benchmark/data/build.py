@@ -79,7 +79,7 @@ def get_dataset_statistics(cfg, return_lookup=False, return_datasets=False, trai
     return result
 
 
-def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True):
+def build_dataset(cfg, dataset_list, transforms, dataset_catalog, is_train=True, aug=False):
     """
     Arguments:
         dataset_list (list[str]): Contains the names of the datasets, i.e.,
