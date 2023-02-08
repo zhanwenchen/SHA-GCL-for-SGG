@@ -50,7 +50,7 @@ if [ -d "$MODEL_DIRNAME" ]; then
   error_exit "Aborted: ${MODEL_DIRNAME} exists." 2>&1 | tee -a ${LOGDIR}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.log
 else
   export CUDA_VISIBLE_DEVICES=0
-  export BATCH_SIZE=16
+  export BATCH_SIZE=8
   export MAX_ITER=60000
   export CONFIG_FILE=configs/SHA_GCL_e2e_relation_X_101_32_8_FPN_1x.yaml
   export DATA_DIR_VG_RCNN=${HOME}/datasets
@@ -60,6 +60,14 @@ else
   export PRE_VAL=False
   export PORT=$(comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 1)
   export WEIGHT="''"
+
+  # Relation Augmentation: Semantic
+  export NUM2AUG=4
+  export MAX_BATCHSIZE_AUG=16
+  export ALL_EDGES_FPATH=/gpfs/gpfs0/project/SDS/research/sds-rise/zhanwen/datasets/visual_genome/vg_gbnet/all_edges.pkl
+  export STRATEGY='cooccurrence-pred_cov'
+  export BOTTOM_K=30
+  export USE_SEMANTIC=True
 
   ${PROJECT_DIR}/scripts/train.sh
 fi

@@ -16,7 +16,7 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 from maskrcnn_benchmark.config import cfg
-from maskrcnn_benchmark.data import make_data_loader
+from maskrcnn_benchmark.data import make_data_loader, get_dataset_statistics
 from maskrcnn_benchmark.solver import make_lr_scheduler
 from maskrcnn_benchmark.solver import make_optimizer
 from maskrcnn_benchmark.engine.trainer import reduce_loss_dict
@@ -30,6 +30,7 @@ from maskrcnn_benchmark.utils.imports import import_file
 from maskrcnn_benchmark.utils.logger import setup_logger, debug_print
 from maskrcnn_benchmark.utils.miscellaneous import mkdir, save_config
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
+from maskrcnn_benchmark.utils.relation_augmentation import RelationAugmenter
 
 
 # See if we can use apex.DistributedDataParallel instead of the torch default,
@@ -45,13 +46,13 @@ def train(cfg, local_rank, distributed, logger):
     best_mR = 0.0
     logger.info("***********************Step 1: loading models***********************")
     debug_print(logger, 'prepare training')
-    model = build_detection_model(cfg) 
+    model = build_detection_model(cfg)
     debug_print(logger, 'end model construction')
 
     # modules that should be always set in eval mode
     # their eval() method should be called after model.train() is called
     eval_modules = (model.rpn, model.backbone, model.roi_heads.box,)
- 
+
     fix_eval_modules(eval_modules)
 
     # NOTE, we slow down the LR of the layers start with the names in slow_heads
@@ -64,7 +65,7 @@ def train(cfg, local_rank, distributed, logger):
     # load pretrain layers to new layers
     load_mapping = {"roi_heads.relation.box_feature_extractor" : "roi_heads.box.feature_extractor",
                     "roi_heads.relation.union_feature_extractor.feature_extractor" : "roi_heads.box.feature_extractor"}
-    
+
     if cfg.MODEL.ATTRIBUTE_ON:
         load_mapping["roi_heads.relation.att_feature_extractor"] = "roi_heads.attribute.feature_extractor"
         load_mapping["roi_heads.relation.union_feature_extractor.att_feature_extractor"] = "roi_heads.attribute.feature_extractor"
@@ -131,6 +132,17 @@ def train(cfg, local_rank, distributed, logger):
         is_distributed=distributed,
     )
     debug_print(logger, 'end dataloader')
+    statistics = get_dataset_statistics(cfg)
+    fg_matrix = statistics['fg_matrix']
+    pred_counts = fg_matrix.sum((0,1))
+    use_semantic = cfg.SOLVER.AUGMENTATION.USE_SEMANTIC
+    if use_semantic:
+        strategy = cfg.SOLVER.AUGMENTATION.STRATEGY
+        bottom_k = cfg.SOLVER.AUGMENTATION.BOTTOM_K
+        num2aug = cfg.SOLVER.AUGMENTATION.NUM2AUG
+        max_batchsize_aug = cfg.SOLVER.AUGMENTATION.MAX_BATCHSIZE_AUG
+        relation_augmenter = RelationAugmenter(pred_counts, bottom_k=bottom_k, strategy=strategy, cfg=cfg) # TODO: read strategy from scripts
+        debug_print(logger, 'end RelationAugmenter')
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     logger.info("***********************Step 4: over***********************")
     print('\n')
@@ -149,8 +161,14 @@ def train(cfg, local_rank, distributed, logger):
 
     print_first_grad = True
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
+        num_before = len(targets)
+        if use_semantic:
+            images, targets = relation_augmenter.augment(images, targets, num2aug, max_batchsize_aug)
+            print(f'{iteration}: Augmentation: {num_before} => {len(targets)}')
+
         if any(len(target) < 1 for target in targets):
             logger.error(f"Iteration={iteration + 1} || Image Ids used for training {_} || targets Length={[len(target) for target in targets]}" )
+
         data_time = time.time() - end
         iteration = iteration + 1
         arguments["iteration"] = iteration
@@ -175,7 +193,7 @@ def train(cfg, local_rank, distributed, logger):
         # Otherwise apply loss scaling for mixed-precision recipe
         with amp.scale_loss(losses, optimizer) as scaled_losses:
             scaled_losses.backward()
-        
+
         # add clip_grad_norm from MOTIFS, tracking gradient, used for debug
         verbose = (iteration % cfg.SOLVER.PRINT_GRAD_FREQ) == 0 or print_first_grad # print grad or not
         print_first_grad = False
@@ -223,7 +241,7 @@ def train(cfg, local_rank, distributed, logger):
                 best_mR = val_result
             logger.info("now best epoch in mR@k is : %d, num is %.4f" % (best_epoch, best_mR))
             logger.info("Validation Result: %.4f" % val_result)
- 
+
         # scheduler should be called after optimizer.step() in pytorch>=1.1.0
         # https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
         if cfg.SOLVER.SCHEDULE.TYPE == "WarmupReduceLROnPlateau":

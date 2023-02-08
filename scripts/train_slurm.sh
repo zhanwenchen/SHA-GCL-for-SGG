@@ -63,8 +63,8 @@ else
   module purge
   module load singularity
 
-  export BATCH_SIZE=64
-  export MAX_ITER=10000
+  export BATCH_SIZE=40
+  export MAX_ITER=20000
   export SINGULARITYENV_PREPEND_PATH="${HOME}/.conda/envs/gcl/bin:/opt/conda/condabin"
   export CONFIG_FILE=configs/SHA_GCL_e2e_relation_X_101_32_8_FPN_1x.yaml
   export NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
@@ -73,6 +73,14 @@ else
   export PRE_VAL=True
   export PORT=$(comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 1)
   export WEIGHT="''"
+
+  # Relation Augmentation: Semantic
+  export NUM2AUG=4
+  export MAX_BATCHSIZE_AUG=80
+  export ALL_EDGES_FPATH=/gpfs/gpfs0/project/SDS/research/sds-rise/zhanwen/datasets/visual_genome/vg_gbnet/all_edges.pkl
+  export STRATEGY='cooccurrence-pred_cov'
+  export BOTTOM_K=30
+  export USE_SEMANTIC=True
 
   singularity exec --nv --env LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:${HOME}/.conda/envs/gcl/lib" docker://pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel ${PROJECT_DIR}/scripts/train.sh
 fi
