@@ -104,18 +104,26 @@ def train(cfg, local_rank, distributed, logger):
     checkpointer = DetectronCheckpointer(
         cfg, model, optimizer, scheduler, output_dir, save_to_disk, custom_scheduler=True
     )
-    # if there is certain checkpoint in output_dir, load it, else load pretrained detector
-    if cfg.GLOBAL_SETTING.DATASET_CHOICE == 'VG':
-        pretrain_object_detector_dir = cfg.MODEL.PRETRAINED_DETECTOR_CKPT_VG
-    elif cfg.GLOBAL_SETTING.DATASET_CHOICE == 'GQA_200':
-        pretrain_object_detector_dir = cfg.MODEL.PRETRAINED_DETECTOR_CKPT_GQA
-    if checkpointer.has_checkpoint():
-        extra_checkpoint_data = checkpointer.load(pretrain_object_detector_dir,
-                                       update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
-        arguments.update(extra_checkpoint_data)
+    if not cfg.MODEL.WEIGHT.startswith('catalog://') and cfg.MODEL.PRETRAINED_DETECTOR_CKPT != '':
+        debug_print(logger, f'{__file__}.train: CONTINUE Learning with {cfg.MODEL.WEIGHT}')
+        checkpointer.load(cfg.MODEL.WEIGHT)
+        arguments["iteration"] = scheduler.last_epoch
+        assert cfg.SOLVER.MAX_ITER != arguments["iteration"]
+        debug_print(logger, f'{__file__}.train: CONTINUE Learning with {cfg.MODEL.WEIGHT} from iteration {arguments["iteration"]}')
     else:
-        # load_mapping is only used when we init current model from detection model.
-        checkpointer.load(pretrain_object_detector_dir, with_optim=False, load_mapping=load_mapping)
+        debug_print(logger, f'{__file__}.train: Learning from scratch.')
+        # if there is certain checkpoint in output_dir, load it, else load pretrained detector
+        if cfg.GLOBAL_SETTING.DATASET_CHOICE == 'VG':
+            pretrain_object_detector_dir = cfg.MODEL.PRETRAINED_DETECTOR_CKPT_VG
+        elif cfg.GLOBAL_SETTING.DATASET_CHOICE == 'GQA_200':
+            pretrain_object_detector_dir = cfg.MODEL.PRETRAINED_DETECTOR_CKPT_GQA
+        if checkpointer.has_checkpoint():
+            extra_checkpoint_data = checkpointer.load(pretrain_object_detector_dir,
+                                           update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
+            arguments.update(extra_checkpoint_data)
+        else:
+            # load_mapping is only used when we init current model from detection model.
+            checkpointer.load(pretrain_object_detector_dir, with_optim=False, load_mapping=load_mapping)
     debug_print(logger, 'end load checkpointer')
     logger.info("***********************Step 3: over***********************")
     print('\n')
