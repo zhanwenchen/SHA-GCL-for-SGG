@@ -155,7 +155,7 @@ def train(cfg, local_rank, distributed, logger):
     logger.info("***********************Step 4: over***********************")
     print('\n')
 
-    if False:
+    if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
         run_val(cfg, model, val_data_loaders, distributed, logger)
 
