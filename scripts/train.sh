@@ -44,7 +44,7 @@ cp -r ${PROJECT_DIR}/.git/ ${MODEL_DIRNAME} &&
 cp -r ${PROJECT_DIR}/tools/ ${MODEL_DIRNAME} &&
 cp -r ${PROJECT_DIR}/scripts/ ${MODEL_DIRNAME} &&
 cp -r ${PROJECT_DIR}/maskrcnn_benchmark/ ${MODEL_DIRNAME} &&
-python -m torch.distributed.launch --master_port ${PORT} --nproc_per_node=$NUM_GPUS \
+torchrun --master_port ${PORT} --nproc_per_node=$NUM_GPUS \
   ${PROJECT_DIR}/tools/relation_train_net.py \
   --config-file ${CONFIG_FILE} \
   SOLVER.AUGMENTATION.USE_GRAFT ${USE_GRAFT} \

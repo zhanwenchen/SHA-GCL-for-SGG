@@ -9,6 +9,7 @@ from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:sk
 
 import argparse
 import os
+from os import environ as os_environ
 import time
 import datetime
 
@@ -405,7 +406,6 @@ def main():
         help="path to config file",
         type=str,
     )
-    parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument(
         "--skip-test",
         dest="skip_test",
@@ -420,12 +420,13 @@ def main():
     )
 
     args = parser.parse_args()
+    local_rank = int(os_environ.get('LOCAL_RANK', -1))
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
 
     if args.distributed:
-        torch.cuda.set_device(args.local_rank)
+        torch.cuda.set_device(local_rank)
         torch.distributed.init_process_group(
             backend="nccl", init_method="env://"
         )
@@ -462,7 +463,7 @@ def main():
     logger.info("***********************Step 0: over***********************")
     print('\n')
 
-    model = train(cfg, args.local_rank, args.distributed, logger)
+    model = train(cfg, local_rank, args.distributed, logger)
 
     if not args.skip_test:
         run_test(cfg, model, args.distributed, logger)
